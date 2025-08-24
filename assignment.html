@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central Limit Theorem Interactive Demo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+.slider-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.chart-container { transition: all 0.3s ease; min-height: 300px; }
+.sample-btn { transition: all 0.2s ease; }
+.sample-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.sample-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: #667eea;
+}
+.loading { opacity: 0.6; pointer-events: none; }
+.normal-curve { border-left: 2px dashed #4caf50; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div class="container mx-auto px-4 py-8">
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">Central Limit Theorem Demonstration</h1>
+        <p class="text-gray-600">Visualize how sample means approach normal distribution as sample size increases</p>
+    </div>
+
+    <!-- Controls Section -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div>
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Original Data (10,000 numbers)</h2>
+                <div class="bg-gray-100 p-4 rounded-lg mb-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Mean (μ):</p>
+                            <p class="text-sm" id="original-mean">-</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Std Dev (σ):</p>
+                            <p class="text-sm" id="original-std">-</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium">Distribution:</p>
+                            <button id="toggle-distribution" onclick="toggleDistribution()" 
+                                class="text-sm bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded transition duration-200">
+                                Uniform
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="generateData()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center">
+                    Generate New Data
+                </button>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Sample Configuration</h2>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Sample Size (n)</label>
+                    <div class="slider-container p-4 rounded-lg">
+                        <input type="range" min="2" max="50" value="2" class="w-full" id="sample-size-slider" oninput="updateSampleSize(this.value)">
+                        <div class="flex justify-between text-white text-sm mt-2">
+                            <span>2</span>
+                            <span id="current-size" class="font-bold text-lg">2</span>
+                            <span>50</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="setSampleSize(2)" class="sample-btn bg-white border border-gray-300 rounded py-2 px-3 text-sm active">n=2</button>
+                    <button onclick="setSampleSize(5)" class="sample-btn bg-white border border-gray-300 rounded py-2 px-3 text-sm">n=5</button>
+                    <button onclick="setSampleSize(10)" class="sample-btn bg-white border border-gray-300 rounded py-2 px-3 text-sm">n=10</button>
+                    <button onclick="setSampleSize(30)" class="sample-btn bg-white border border-gray-300 rounded py-2 px-3 text-sm">n=30</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid lg:grid-cols-2 gap-8 mb-8">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Original Data Distribution</h2>
+            <div class="chart-container"><canvas id="original-chart"></canvas></div>
+        </div>
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Sample Means Distribution</h2>
+            <div class="chart-container"><canvas id="sample-means-chart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Original Population</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Population Mean (μ):</span>
+                        <span id="stats-original-mean" class="font-mono text-blue-600">-</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Population Std Dev (σ):</span>
+                        <span id="stats-original-std" class="font-mono text-blue-600">-</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Distribution:</span>
+                        <span id="stats-distribution-label" class="font-mono text-green-600">Uniform</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Sample Means (n=<span id="stats-sample-size">2</span>)</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Mean of Sampling Dist. (x̄):</span>
+                        <span id="stats-sample-mean" class="font-mono text-purple-600">-</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Std Error (s):</span>
+                        <span id="stats-sample-std" class="font-mono text-purple-600">-</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b">
+                        <span class="text-gray-600">Theoretical SE (σ/√n):</span>
+                        <span id="stats-theoretical-se" class="font-mono text-green-600">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let originalData = [], sampleMeansData = [], originalChart, sampleMeansChart;
+let currentSampleSize = 2;
+let useNormalDistribution = false; // default uniform
+
+function init(){ generateData(); createCharts(); updateSampleMeans(); }
+
+function toggleDistribution() {
+    useNormalDistribution = !useNormalDistribution;
+    const btn = document.getElementById('toggle-distribution');
+    btn.textContent = useNormalDistribution ? 'Normal' : 'Uniform';
+    document.getElementById('stats-distribution-label').textContent = useNormalDistribution ? 'Normal' : 'Uniform';
+    generateData();
+}
+
+function generateData(){
+    showLoading(true);
+    setTimeout(()=>{
+        originalData=[];
+        if(useNormalDistribution){
+            const mean=2500, stdDev=800;
+            for(let i=0;i<10000;i++){
+                let u1=Math.random(), u2=Math.random();
+                let z0=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+                originalData.push(z0*stdDev+mean);
+            }
+        } else {
+            for(let i=0;i<10000;i++) originalData.push(Math.random()*5000);
+        }
+
+        const mean = originalData.reduce((a,b)=>a+b,0)/originalData.length;
+        const std = Math.sqrt(originalData.reduce((sq,n)=>sq+Math.pow(n-mean,2),0)/originalData.length);
+
+        document.getElementById('original-mean').textContent = mean.toFixed(2);
+        document.getElementById('original-std').textContent = std.toFixed(2);
+        document.getElementById('stats-original-mean').textContent = mean.toFixed(2);
+        document.getElementById('stats-original-std').textContent = std.toFixed(2);
+
+        updateOriginalChart();
+        updateSampleMeans();
+        showLoading(false);
+    },100);
+}
+
+function createHistogramData(data,bins=30){
+    const min=Math.min(...data), max=Math.max(...data), binSize=(max-min)/bins;
+    const hist=Array(bins).fill(0); const labels=[];
+    for(let i=0;i<bins;i++) labels.push((min+(i+0.5)*binSize).toFixed(1));
+    data.forEach(v=>hist[Math.min(Math.floor((v-min)/binSize),bins-1)]++);
+    return {labels:labels,data:hist};
+}
+
+function updateSampleMeans(){
+    showLoading(true);
+    setTimeout(()=>{
+        sampleMeansData=[];
+        for(let i=0;i<2000;i++){
+            let sum=0;
+            for(let j=0;j<currentSampleSize;j++)
+                sum+=originalData[Math.floor(Math.random()*originalData.length)];
+            sampleMeansData.push(sum/currentSampleSize);
+        }
+        const sampleMean=sampleMeansData.reduce((a,b)=>a+b,0)/sampleMeansData.length;
+        const sampleStd=Math.sqrt(sampleMeansData.reduce((sq,n)=>sq+Math.pow(n-sampleMean,2),0)/sampleMeansData.length);
+        const originalStd=parseFloat(document.getElementById('original-std').textContent);
+        const theoreticalSE=originalStd/Math.sqrt(currentSampleSize);
+        document.getElementById('stats-sample-mean').textContent=sampleMean.toFixed(3);
+        document.getElementById('stats-sample-std').textContent=sampleStd.toFixed(3);
+        document.getElementById('stats-theoretical-se').textContent=theoreticalSE.toFixed(3);
+        document.getElementById('stats-sample-size').textContent=currentSampleSize;
+        document.getElementById('current-size').textContent=currentSampleSize;
+        updateSampleMeansChart(); highlightActiveButton(currentSampleSize);
+        showLoading(false);
+    },50);
+}
+
+function setSampleSize(size){ currentSampleSize=parseInt(size); document.getElementById('sample-size-slider').value=currentSampleSize; updateSampleMeans(); }
+function updateSampleSize(size){ setSampleSize(size); }
+
+function highlightActiveButton(size){
+    document.querySelectorAll('.sample-btn').forEach(btn=>{
+        btn.classList.toggle('active', parseInt(btn.textContent.replace('n=',''))===size);
+    });
+}
+
+function showLoading(loading){
+    document.querySelectorAll('.chart-container,button').forEach(el=>el.classList.toggle('loading',loading));
+}
+
+function createCharts(){
+    const ctx1=document.getElementById('original-chart').getContext('2d');
+    const ctx2=document.getElementById('sample-means-chart').getContext('2d');
+    originalChart=new Chart(ctx1,{type:'line',data:{labels:[],datasets:[{label:'Frequency',data:[],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',borderWidth:2,fill:true,tension:0.4,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'Frequency'}},x:{title:{display:true,text:'Value'}}}}});
+    sampleMeansChart=new Chart(ctx2,{type:'line',data:{labels:[],datasets:[{label:'Frequency',data:[],borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,0.1)',borderWidth:2,fill:true,tension:0.4,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'Frequency'}},x:{title:{display:true,text:'Sample Mean'}}}}});
+}
+
+function updateOriginalChart(){
+    const hist=createHistogramData(originalData,30);
+    originalChart.data.labels=hist.labels;
+    originalChart.data.datasets[0].data=hist.data;
+    originalChart.update();
+}
+
+function updateSampleMeansChart(){
+    const hist=createHistogramData(sampleMeansData,20);
+    sampleMeansChart.data.labels=hist.labels;
+    sampleMeansChart.data.datasets[0].data=hist.data;
+    sampleMeansChart.update();
+}
+
+window.onload=init;
+</script>
+</body>
+</html>
